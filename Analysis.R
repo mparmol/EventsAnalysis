@@ -1,0 +1,1098 @@
+library("adephylo")
+library("ape")
+library("data.table")
+library(ggnewscale)
+library("ggplot2")
+library("ggtree")
+library("phangorn")
+library("randomcoloR")
+library("reshape2")
+library("stringr")
+
+
+#args = commandArgs(trailingOnly=TRUE) #Useful function to get arguments from command line upon execution of the script
+#if (length(args)==0) {
+#  stop("At least one argument must be supplied (input file).n", call.=FALSE)
+#} else if (length(args)==1) {
+#  # default output file
+#  args[2] = "out.txt"
+#}
+
+isEmpty <- function(x) { #This function checks if a data frame is empty or not
+  return(length(x)==0)
+}
+
+paste3 <- function(...,sep=", ") { #Improved paste function
+  L <- list(...)
+  L <- lapply(L,function(x) {x[is.na(x)] <- ""; x})
+  ret <-gsub(paste0("(^",sep,"|",sep,"$)"),"",
+             gsub(paste0(sep,sep),sep,
+                  do.call(paste,c(L,list(sep=sep)))))
+  is.na(ret) <- ret==""
+  ret
+}
+
+tab_resul<-read.delim("Taxonomy.txt",sep="\t",header=T,row.names = 1) #Here we read the taxonomic information table we are going to use to evaluate events
+
+aux_table_results<-data.frame(rownames(tab_resul))
+
+aux_table_results$filo<-tab_resul$phylum
+
+tree_l<-read.tree("tree_file") #The unrooted tree is loaded this way
+tree_l<-makeNodeLabel(tree_l) #With this funtion we give name to each of the tree nodes
+write.tree(tree_l,"tree_file")
+
+row.names(aux_table_results)<-rownames(tab_resul) #We create an auxiliary table to save all the information we are processing during the analysis, with taxonomic information, blast best hit...
+aux_table_results2<-data.frame(aux_table_results[,-1])
+row.names(aux_table_results2)<-row.names(aux_table_results)
+
+tree<-tree_l
+
+####With this code block we are able to get all the information from the nodes and leaves, their ID and given name
+
+node_labels_in_edge <- tree$node.label[tree$edge[,1]-Ntip(tree)]
+tips_nodes <- tree$edge[,2]
+
+select.tip.or.node <- function(element, tree) {
+  ifelse(element < Ntip(tree)+1, tree$tip.label[element], tree$node.label[element-Ntip(tree)])
+}
+
+edge_table <- data.frame(
+  "parent" = tree$edge[,1],
+  "par.name" = sapply(tree$edge[,1], select.tip.or.node, tree = tree),
+  "child" = tree$edge[,2],
+  "chi.name" = sapply(tree$edge[,2], select.tip.or.node, tree = tree)
+)
+
+edge_table$parent=as.numeric(edge_table$parent)
+edge_table$child=as.numeric(edge_table$child)
+edge_table$par.name=as.character(edge_table$par.name)
+edge_table$chi.name=as.character(edge_table$chi.name)
+####
+
+
+aux_table_results3<-aux_table_results2 ####Auxiliary table only for phyla between node comparations
+
+nodes_list=unique(edge_table$par.name) #We get all possible node names from the table
+results_table=data.frame(matrix(ncol = 10))
+distance_results=data.frame(matrix(ncol = 3))
+e=1
+
+for(i in 1:length(nodes_list)) #This loop is the core of the script. It will go over all nodes form last to first one, comparing the taxonomy of the sequeneces that belongs to each of the branches
+{
+  if(!sort(str_detect(edge_table[edge_table$child %in% Descendants(tree,edge_table[edge_table$par.name==nodes_list[length(nodes_list)-i+1],1],type = "child")[[1]],4],"Node."),decreasing = T)[1]) ###This checks for a 100% similarity sequences nodes that could be composed of genomes belonging to different phyla 
+  {
+    children_node_leaves<-levels(factor(as.character(aux_table_results3[rownames(aux_table_results3) %in% edge_table[edge_table$child %in% Descendants(tree,edge_table[edge_table$par.name==nodes_list[length(nodes_list)-i+1],1],type = "child")[[1]],4],1])))
+    
+    if((length(children_node_leaves)==2 && !('Unknown' %in% children_node_leaves)) || length(children_node_leaves)>2)
+    {
+      results_table[e,]=c(nodes_list[length(nodes_list)-i+1],paste(children_node_leaves,collapse = ";"),NA,paste(edge_table[edge_table$child %in% Descendants(tree,edge_table[edge_table$par.name==nodes_list[length(nodes_list)-i+1],1],type = "child")[[1]],4],collapse = ";"),NA,length(edge_table[edge_table$child %in% Descendants(tree,edge_table[edge_table$par.name==nodes_list[length(nodes_list)-i+1],1],type = "child")[[1]],4]),NA,NA,NA,NA) #Within this line we save the node info of events
+      distance_results[e,]<-c(nodes_list[length(nodes_list)-i+1],"NA","NA")
+	e=e+1
+    }
+  }else
+  {### In this block we check that a node contains only leaves and their phyla are different among them
+    
+    descendant_nodes=Descendants(tree,edge_table[edge_table$par.name==nodes_list[length(nodes_list)-i+1],1],type = "child")[[1]] #Knowing which are the children of each node we can get their taxonomy and compare it
+    descendant_nodes1=Descendants(tree,descendant_nodes[1])[[1]]
+    descendant_nodes2=Descendants(tree,descendant_nodes[2])[[1]]
+    
+    vector1=NULL #Here we save the leaves names from each descendant
+    vector2=NULL
+    
+    for(o in 1:length(descendant_nodes1))
+    {
+      vector1=c(vector1,edge_table[edge_table$child==descendant_nodes1[o],4])  
+    }
+    
+    for(o in 1:length(descendant_nodes2))
+    {
+      vector2=c(vector2,edge_table[edge_table$child==descendant_nodes2[o],4])  
+    }
+    
+    vector1=sort(vector1) #Leaves names are sorted here
+    vector2=sort(vector2)
+    
+    leaves_levels1<-levels(factor(as.character(aux_table_results3[rownames(aux_table_results3) %in% vector1,1])))
+    leaves_levels2<-levels(factor(as.character(aux_table_results3[rownames(aux_table_results3) %in% vector2,1])))
+    
+    ################################
+  
+    if(length(descendant_nodes)==3) #This is only in case we are working with tripartite trees, so we can get the info for the three branches
+    {
+      descendant_nodes3=Descendants(tree,descendant_nodes[3])[[1]]
+      
+      vector3=NULL
+      
+      for(o in 1:length(descendant_nodes3))
+      {
+        vector3=c(vector3,edge_table[edge_table$child==descendant_nodes3[o],4])  
+      }
+      
+      leaves_levels3<-levels(factor(as.character(aux_table_results3[rownames(aux_table_results3) %in% vector3,1])))
+      
+    }
+	
+    if(length(descendant_nodes)==3 && (leaves_levels1 != "Unknown" && leaves_levels2 != "Unknown" && leaves_levels3 != "Unknown" && length(unique(c(leaves_levels1,leaves_levels2,leaves_levels3)))>sort(c(length(leaves_levels1),length(leaves_levels2),length(leaves_levels3)),decreasing = T)[1]))
+    {
+		results_table[e,]=c(nodes_list[length(nodes_list)-i+1],paste(leaves_levels1,collapse = ";"),paste(leaves_levels2,collapse = ";"),paste(leaves_levels3,collapse = ";"),paste(vector1,collapse = ";"),paste(vector2,collapse = ";"),paste(vector3,collapse = ";"),length(vector1),length(vector2),length(vector3)) #Within this line we save the node info of events
+        
+		if(length(vector1)<=5000 & length(vector2)<=5000 & length(vector3)<=5000) #Here we calculate the inter-patristic distance within sequences that belongs to different branches, only for thoses that have 5000 or less leaves
+        {
+          sub_tree<-keep.tip(tree,c(vector1,vector2,vector3))
+          
+          pairwise_all<-data.frame(as.matrix(distTips(sub_tree,method = "patristic")))
+          colnames(pairwise_all)<-rownames(pairwise_all)
+          pairwise_all$leaf<-rownames(pairwise_all)
+          pairwise_all_melt<-melt(pairwise_all,id.vars = "leaf")
+          pairwise_all_melt$combination<-paste(pairwise_all_melt$leaf,pairwise_all_melt$variable,sep = "")
+          
+          
+          leaves_combinations=data.frame(expand.grid(vector1,vector2,vector3)) #We perform the combinations and save them as characters
+          leaves_combinations$Var1=as.character(leaves_combinations$Var1)
+          leaves_combinations$Var2=as.character(leaves_combinations$Var2)
+          leaves_combinations$Var3=as.character(leaves_combinations$Var3)
+          values_j=NULL #Within this vector we will save all distance values from the pairwise of all leaves
+          
+          combinations_parse<-paste(leaves_combinations$Var1,leaves_combinations$Var2,leaves_combinations$Var3,sep = "")
+          values_j<-pairwise_all_melt[pairwise_all_melt$combination %in% combinations_parse,3]
+          
+          distance_results[e,]<-c(nodes_list[length(nodes_list)-i+1],min(values_j),max(values_j))
+        }else
+        {
+          distance_results[e,]<-c(nodes_list[length(nodes_list)-i+1],"NA","NA")
+        }
+        e=e+1  
+      }else if(length(descendant_nodes)==2 && (leaves_levels1 != "Unknown" && leaves_levels2 != "Unknown" && length(unique(c(leaves_levels1,leaves_levels2)))>sort(c(length(leaves_levels1),length(leaves_levels2)),decreasing = T)[1]))
+      {
+  
+       results_table[e,]=c(nodes_list[length(nodes_list)-i+1],paste(leaves_levels1,collapse = ";"),paste(leaves_levels2,collapse = ";"),paste(vector1,collapse = ";"),paste(vector2,collapse = ";"),length(vector1),length(vector2),NA,NA,NA) #Within this line we save the node info of events
+          
+       if(length(vector1)<=5000 & length(vector2)<=5000)
+       {
+        sub_tree<-keep.tip(tree,c(vector1,vector2))
+            
+        pairwise_all<-data.frame(as.matrix(distTips(sub_tree,method = "patristic")))
+        colnames(pairwise_all)<-rownames(pairwise_all)
+        pairwise_all$leaf<-rownames(pairwise_all)
+        pairwise_all_melt<-melt(pairwise_all,id.vars = "leaf")
+        pairwise_all_melt$combination<-paste(pairwise_all_melt$leaf,pairwise_all_melt$variable,sep = "")
+            
+            
+        leaves_combinations=data.frame(expand.grid(vector1,vector2)) #We perform the combinations and save them as characters
+        leaves_combinations$Var1=as.character(leaves_combinations$Var1)
+        leaves_combinations$Var2=as.character(leaves_combinations$Var2)
+        values_j=NULL 
+            
+        combinations_parse<-paste(leaves_combinations$Var1,leaves_combinations$Var2,sep = "")
+        values_j<-pairwise_all_melt[pairwise_all_melt$combination %in% combinations_parse,3]
+            
+        distance_results[e,]<-c(nodes_list[length(nodes_list)-i+1],min(values_j),max(values_j))
+       }else
+       {
+		distance_results[e,]<-c(nodes_list[length(nodes_list)-i+1],"NA","NA")
+       }
+       e=e+1  
+      }  
+  }
+}
+
+#write.table(distance_results,"distance_results.txt",sep = "\t",row.names = F,col.names = F,quote = F)
+
+Nodes_to_color<-unique(edge_table[edge_table$par.name %in% results_table$X1,1])
+
+#p8<-ggtree(tree_l,layout = 'circular',branch.length='none') + 
+#  geom_tiplab(size=0) + geom_point2(aes(subset=(node %in% Nodes_to_color)),color="green",size=2)
+
+#p8<-gheatmap(p8,aux_table_results2,offset=0.1, width=0.2,color = NULL)
+
+#pdf("tree_paint_jj_circ3.pdf",height = 20, width = 20) #All information is printed and saved
+#plot(p8)
+#dev.off()
+
+plasmids_ids_table=read.delim("total_ids_plasmid.txt",sep="\t",header = F) ##From this poitn we compute the information about plasmids
+#plasmids_ids_table=read.delim("/home/parras/RESULTADOS_FINALES_NO_BORRAR/total_ids_plasmid.txt",sep="\t",header = F) ##From this poitn we compute the information about plasmids
+info_plasmids=data.frame(matrix(ncol=1,nrow = length(aux_table_results2[,1])))
+rownames(info_plasmids)=rownames(aux_table_results2)
+info_plasmids[,1]=data.frame(sapply(strsplit(as.character(rownames(info_plasmids)), "_"), "[[", 1))
+info_plasmids[info_plasmids[,1] %in% plasmids_ids_table[,1],2]="Plasmid"
+info_plasmids=data.frame(info_plasmids[,-1])
+rownames(info_plasmids)=rownames(aux_table_results2)
+
+for(i in 1:length(results_table[,1]))
+{
+  if(!is.na(results_table[i,4]))
+  {
+    random_var=data.frame(str_split(as.character(results_table[i,4]),";")[[1]])
+    random_var2=data.frame(sapply(strsplit(as.character(random_var[,1]), "_"), "[[", 1))
+    
+	if(length(random_var2[random_var2[,1] %in% plasmids_ids_table[,1],1])>0)
+	{
+		results_table[i,11]=paste(rep("Plasmid",length(random_var2[random_var2[,1] %in% plasmids_ids_table[,1],1])),collapse = ";")  
+  	}else
+	{
+		results_table[i,11]=NA
+	}	
+  }else
+  {
+    results_table[i,11]=NA
+  }
+  if(!is.na(results_table[i,5]))
+  {
+    random_var=data.frame(str_split(as.character(results_table[i,5]),";")[[1]])
+    random_var2=data.frame(sapply(strsplit(as.character(random_var[,1]), "_"), "[[", 1))
+	if(length(random_var2[random_var2[,1] %in% plasmids_ids_table[,1],1])>0)
+	{
+    		results_table[i,12]=paste(rep("Plasmid",length(random_var2[random_var2[,1] %in% plasmids_ids_table[,1],1])),collapse = ";") 
+	}else
+	{
+		results_table[i,12]=NA
+	}  
+  }else
+  {
+    results_table[i,12]=NA
+  }
+}
+
+#write.table(results_table,"resultados_discrepacias.txt",sep = "\t",row.names = F,col.names = F,quote = F)
+#write.table(info_plasmids,"resultados_plasmids.txt",sep = "\t",col.names = F,quote = F)
+
+################## Here we load the Blast result computed before
+
+blast_results<-read.delim("Blast_Antibiotic_analysis",sep="\t",header=F)
+
+aux_table_results2[,2]<-blast_results[,2]
+aux_table_results2[,3]<-blast_results[,3]
+
+######################################### This code block will be used to get the isolation source information for all sequeneces. In the file "Total_isolation_modificado_isolation.txt" we have the isolation source info from the database, and we are going to cluster that information based in out criteria
+
+isolation=as.data.frame(fread("Total_isolation.txt",header=F,sep="\t",na.strings=c("","NA")))
+#isolation=as.data.frame(fread("/storage/parras/databaseR/Tablas_taxa/Total_isolation_modificado_isolation.txt",header=F,sep="\t",na.strings=c("","NA")))
+
+print(dim(isolation))
+isolation_criteria<-read.table("isolation_criteria.txt", na.strings=c("","NA"),row.names = 1,sep = '\t',header = F) #This file contains the clustering criteria into the different groups
+#isolation_criteria<-read.table("/home/parras/RESULTADOS_FINALES_NO_BORRAR/isolation_criteria.txt", na.strings=c("","NA"),row.names = 1,sep = '\t',header = F) #This file contains the clustering criteria into the different groups
+
+isolation_exclusion_criteria<-read.table("isolation_exclusion_criteria.txt", na.strings=c("","NA"),row.names = 1,sep = '\t',header = F) #This file include an exclusion list for some sources, as they could be ambiguous. 
+#isolation_exclusion_criteria<-read.table("/home/parras/RESULTADOS_FINALES_NO_BORRAR/isolation_exclusion_criteria.txt", na.strings=c("","NA"),row.names = 1,sep = '\t',header = F) #This file include an exclusion list for some sources, as they could be ambiguous. 
+
+isolation_criteria<-apply(isolation_criteria,2,tolower)
+isolation_exclusion_criteria<-apply(isolation_exclusion_criteria,2,tolower)
+
+isolation=isolation[isolation[,2] %in% sapply(strsplit(as.character(rownames(aux_table_results2)), "\\."), "[[", 1),]
+
+print(dim(isolation))
+
+for(i in 1:length(aux_table_results2[,1]))
+{
+  if(!isEmpty(isolation[isolation$V2==str_split(rownames(aux_table_results2)[i],'\\.')[[1]][1],5]))
+  {
+    aux_table_results2[i,4]<-isolation[isolation$V2==str_split(rownames(aux_table_results2)[i],'\\.')[[1]][1],5][1]
+  }
+}
+
+results_table[,11]<-as.character(results_table[,11])
+results_table[,12]<-as.character(results_table[,12])
+
+for(i in 1:length(results_table[,1]))
+{
+  results_table[i,13]<-paste3(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,4]),";")[[1]],4],collapse = '?')
+  results_table[i,14]<-paste3(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,5]),";")[[1]],4],collapse = '?')
+  
+	if(!is.na(results_table[i,11]) & !isEmpty(results_table[i,11]))
+	{
+  	results_table[i,11]<-as.character(length(str_split(results_table[i,11],";")[[1]]))
+  	}
+	if(!is.na(results_table[i,12]) & !isEmpty(results_table[i,12]))
+	{
+	results_table[i,12]<-as.character(length(str_split(results_table[i,12],";")[[1]]))
+	}
+}
+
+
+Soil<-as.character(na.omit(as.character(as.matrix((isolation_criteria[1,])))))
+Sediment<-as.character(na.omit(as.character(as.matrix((isolation_criteria[2,])))))
+PlantsFung<-as.character(na.omit(as.character(as.matrix((isolation_criteria[3,])))))
+WasteWater<-as.character(na.omit(as.character(as.matrix((isolation_criteria[4,])))))
+BuildEnv<-as.character(na.omit(as.character(as.matrix((isolation_criteria[5,])))))
+Air<-as.character(na.omit(as.character(as.matrix((isolation_criteria[6,])))))
+Misc<-as.character(na.omit(as.character(as.matrix((isolation_criteria[7,])))))
+MarineW<-as.character(na.omit(as.character(as.matrix((isolation_criteria[8,])))))
+Water<-as.character(na.omit(as.character(as.matrix((isolation_criteria[9,])))))
+Aquaculture<-as.character(na.omit(as.character(as.matrix((isolation_criteria[10,])))))
+FreshW<-as.character(na.omit(as.character(as.matrix((isolation_criteria[11,])))))
+Faecal<-as.character(na.omit(as.character(as.matrix((isolation_criteria[12,])))))
+Human<-as.character(na.omit(as.character(as.matrix((isolation_criteria[13,])))))
+DomesticAnimals<-as.character(na.omit(as.character(as.matrix((isolation_criteria[14,])))))
+Agricultur<-as.character(na.omit(as.character(as.matrix((isolation_criteria[15,])))))
+Animals<-as.character(na.omit(as.character(as.matrix((isolation_criteria[16,])))))
+Feed<-as.character(na.omit(as.character(as.matrix((isolation_criteria[17,])))))
+Microbial<-as.character(na.omit(as.character(as.matrix((isolation_criteria[18,])))))
+Clinical<-as.character(na.omit(as.character(as.matrix((isolation_criteria[19,])))))
+
+Soil_S<-Soil[nchar(Soil)< 5]
+Soil<-Soil[nchar(Soil)> 4]
+Sediment_S<-Sediment[nchar(Sediment)< 5]
+Sediment<-Sediment[nchar(Sediment)> 4]
+PlantsFung_S<-PlantsFung[nchar(PlantsFung)< 5]
+PlantsFung<-PlantsFung[nchar(PlantsFung)> 4]
+WasteWater_S<-WasteWater[nchar(WasteWater)< 5]
+WasteWater<-WasteWater[nchar(WasteWater)> 4]
+BuildEnv_S<-BuildEnv[nchar(BuildEnv)< 5]
+BuildEnv<-BuildEnv[nchar(BuildEnv)> 4]
+Air_S<-Air[nchar(Air)< 5]
+Air<-Air[nchar(Air)> 4]
+Misc_S<-Misc[nchar(Misc)< 5]
+Misc<-Misc[nchar(Misc)> 4]
+MarineW_S<-MarineW[nchar(MarineW)< 5]
+MarineW<-MarineW[nchar(MarineW)> 4]
+Water_S<-Water[nchar(Water)< 5]
+Water<-Water[nchar(Water)> 4]
+Aquaculture_S<-Aquaculture[nchar(Aquaculture)< 5]
+Aquaculture<-Aquaculture[nchar(Aquaculture)> 4]
+FreshW_S<-FreshW[nchar(FreshW)< 5]
+FreshW<-FreshW[nchar(FreshW)> 4]
+Faecal_S<-Faecal[nchar(Faecal)< 5]
+Faecal<-Faecal[nchar(Faecal)> 4]
+Human_S<-Human[nchar(Human)< 5]
+Human<-Human[nchar(Human)> 4]
+Human<-setdiff(Human, "colon")
+Human_S<-c(Human_S,"colon")
+DomesticAnimals_S<-DomesticAnimals[nchar(DomesticAnimals)< 5]
+DomesticAnimals<-DomesticAnimals[nchar(DomesticAnimals)> 4]
+Agricultur_S<-Agricultur[nchar(Agricultur)< 5]
+Agricultur<-Agricultur[nchar(Agricultur)> 4]
+Animals_S<-Animals[nchar(Animals)< 5]
+Animals<-Animals[nchar(Animals)> 4]
+Feed_S<-Feed[nchar(Feed)< 5]
+Feed<-Feed[nchar(Feed)> 4]
+Microbial_S<-Microbial[nchar(Microbial)< 5]
+Microbial<-Microbial[nchar(Microbial)> 4]
+Clinical_S<-Clinical[nchar(Clinical)< 5]
+Clinical<-Clinical[nchar(Clinical)> 4]
+
+Soil_ex<-as.character(na.omit(as.character(as.matrix((isolation_exclusion_criteria[1,])))))
+Sediment_ex<-as.character(na.omit(as.character(as.matrix((isolation_exclusion_criteria[2,])))))
+PlantsFung_ex<-as.character(na.omit(as.character(as.matrix((isolation_exclusion_criteria[3,])))))
+WasteWater_ex<-as.character(na.omit(as.character(as.matrix((isolation_exclusion_criteria[4,])))))
+BuildEnv_ex<-as.character(na.omit(as.character(as.matrix((isolation_exclusion_criteria[5,])))))
+Air_ex<-as.character(na.omit(as.character(as.matrix((isolation_exclusion_criteria[6,])))))
+Misc_ex<-as.character(na.omit(as.character(as.matrix((isolation_exclusion_criteria[7,])))))
+MarineW_ex<-as.character(na.omit(as.character(as.matrix((isolation_exclusion_criteria[8,])))))
+Water_ex<-as.character(na.omit(as.character(as.matrix((isolation_exclusion_criteria[9,])))))
+Aquaculture_ex<-as.character(na.omit(as.character(as.matrix((isolation_exclusion_criteria[10,])))))
+FreshW_ex<-as.character(na.omit(as.character(as.matrix((isolation_exclusion_criteria[11,])))))
+Faecal_ex<-as.character(na.omit(as.character(as.matrix((isolation_exclusion_criteria[12,])))))
+Human_ex<-as.character(na.omit(as.character(as.matrix((isolation_exclusion_criteria[13,])))))
+DomesticAnimals_ex<-as.character(na.omit(as.character(as.matrix((isolation_exclusion_criteria[14,])))))
+Agricultur_ex<-as.character(na.omit(as.character(as.matrix((isolation_exclusion_criteria[15,])))))
+Animals_ex<-as.character(na.omit(as.character(as.matrix((isolation_exclusion_criteria[16,])))))
+Feed_ex<-as.character(na.omit(as.character(as.matrix((isolation_exclusion_criteria[17,])))))
+Microbial_ex<-as.character(na.omit(as.character(as.matrix((isolation_exclusion_criteria[18,])))))
+Clinical_ex<-as.character(na.omit(as.character(as.matrix((isolation_exclusion_criteria[19,])))))
+
+Soil_exS<-Soil_ex[nchar(Soil_ex)< 5]
+Soil_ex<-Soil_ex[nchar(Soil_ex)> 4]
+Sediment_exS<-Sediment_ex[nchar(Sediment_ex)< 5]
+Sediment_ex<-Sediment_ex[nchar(Sediment_ex)> 4]
+PlantsFung_exS<-PlantsFung_ex[nchar(PlantsFung_ex)< 5]
+PlantsFung_ex<-PlantsFung_ex[nchar(PlantsFung_ex)> 4]
+WasteWater_exS<-WasteWater_ex[nchar(WasteWater_ex)< 5]
+WasteWater_ex<-WasteWater_ex[nchar(WasteWater_ex)> 4]
+BuildEnv_exS<-BuildEnv_ex[nchar(BuildEnv_ex)< 5]
+BuildEnv_ex<-BuildEnv_ex[nchar(BuildEnv_ex)> 4]
+Air_exS<-Air_ex[nchar(Air_ex)< 5]
+Air_ex<-Air_ex[nchar(Air_ex)> 4]
+Misc_exS<-Misc_ex[nchar(Misc_ex)< 5]
+Misc_ex<-Misc_ex[nchar(Misc_ex)> 4]
+MarineW_exS<-MarineW_ex[nchar(MarineW_ex)< 5]
+MarineW_ex<-MarineW_ex[nchar(MarineW_ex)> 4]
+Water_exS<-Water_ex[nchar(Water_ex)< 5]
+Water_ex<-Water_ex[nchar(Water_ex)> 4]
+Aquaculture_exS<-Aquaculture_ex[nchar(Aquaculture_ex)< 5]
+Aquaculture_ex<-Aquaculture_ex[nchar(Aquaculture_ex)> 4]
+FreshW_exS<-FreshW_ex[nchar(FreshW_ex)< 5]
+FreshW_ex<-FreshW_ex[nchar(FreshW_ex)> 4]
+Faecal_exS<-Faecal_ex[nchar(Faecal_ex)< 5]
+Faecal_ex<-Faecal_ex[nchar(Faecal_ex)> 4]
+Human_exS<-Human_ex[nchar(Human_ex)< 5]
+Human_ex<-Human_ex[nchar(Human_ex)> 4]
+DomesticAnimals_exS<-DomesticAnimals_ex[nchar(DomesticAnimals_ex)< 5]
+DomesticAnimals_ex<-DomesticAnimals_ex[nchar(DomesticAnimals_ex)> 4]
+Agricultur_exS<-Agricultur_ex[nchar(Agricultur_ex)< 5]
+Agricultur_ex<-Agricultur_ex[nchar(Agricultur_ex)> 4]
+Animals_exS<-Animals_ex[nchar(Animals_ex)< 5]
+Animals_ex<-Animals_ex[nchar(Animals_ex)> 4]
+Feed_exS<-Feed_ex[nchar(Feed_ex)< 5]
+Feed_ex<-Feed_ex[nchar(Feed_ex)> 4]
+Microbial_exS<-Microbial_ex[nchar(Microbial_ex)< 5]
+Microbial_ex<-Microbial_ex[nchar(Microbial_ex)> 4]
+Clinical_exS<-Clinical_ex[nchar(Clinical_ex)< 5]
+Clinical_ex<-Clinical_ex[nchar(Clinical_ex)> 4]
+
+inclusion_clinical=c("calf","sponge","sole","fungal","fungus")
+
+matches_soil <-NULL
+matches_sediment <-NULL
+matches_plantsfungus <-NULL
+matches_wastewater <-NULL
+matches_buildenv <-NULL
+matches_air <-NULL
+matches_misc <-NULL
+matches_marinew <-NULL
+matches_water <-NULL
+matches_aquaculture <-NULL
+matches_freshw <-NULL
+matches_faecal <-NULL
+matches_human <-NULL
+matches_domesticanimals <-NULL
+matches_agricultur <-NULL
+matches_animals <-NULL
+matches_feed <-NULL
+matches_microbial <-NULL
+matches_clinical <-NULL
+
+matches_soil_ex <-NULL
+matches_sediment_ex <-NULL
+matches_plantsfungus_ex <-NULL
+matches_wastewater_ex <-NULL
+matches_buildenv_ex <-NULL
+matches_air_ex <-NULL
+matches_misc_ex <-NULL
+matches_marinew_ex <-NULL
+matches_water_ex <-NULL
+matches_aquaculture_ex <-NULL
+matches_freshw_ex <-NULL
+matches_faecal_ex <-NULL
+matches_human_ex <-NULL
+matches_domesticanimals_ex <-NULL
+matches_agricultur_ex <-NULL
+matches_animals_ex <-NULL
+matches_feed_ex <-NULL
+matches_microbial_ex <-NULL
+matches_clinical_ex <-NULL
+
+for(i in 1:length(aux_table_results2[,1]))
+{
+  linea_extraida<-tolower(aux_table_results2[i,4])
+  
+	 matches_soil <-grep(paste(Soil,collapse="|"),linea_extraida, value=TRUE)
+  matches_sediment <-grep(paste(Sediment,collapse="|"),linea_extraida, value=TRUE)
+  matches_plantsfungus <-grep(paste(PlantsFung,collapse="|"),linea_extraida, value=TRUE)
+  matches_wastewater <-grep(paste(WasteWater,collapse="|"),linea_extraida, value=TRUE)
+  matches_buildenv <-grep(paste(BuildEnv,collapse="|"),linea_extraida, value=TRUE)
+  matches_air <-grep(paste(Air,collapse="|"),linea_extraida, value=TRUE)
+  matches_misc <-grep(paste(Misc,collapse="|"),linea_extraida, value=TRUE)
+  matches_marinew <-grep(paste(MarineW,collapse="|"),linea_extraida, value=TRUE)
+  matches_water <-grep(paste(Water,collapse="|"),linea_extraida, value=TRUE)
+  matches_aquaculture <-grep(paste(Aquaculture,collapse="|"),linea_extraida, value=TRUE)
+  matches_freshw <-grep(paste(FreshW,collapse="|"),linea_extraida, value=TRUE)
+  matches_faecal <-grep(paste(Faecal,collapse="|"),linea_extraida, value=TRUE)
+  matches_human <-grep(paste(Human,collapse="|"),linea_extraida, value=TRUE)
+  matches_domesticanimals <-grep(paste(DomesticAnimals,collapse="|"),linea_extraida, value=TRUE)
+  matches_agricultur <-grep(paste(Agricultur,collapse="|"),linea_extraida, value=TRUE)
+  matches_animals <-grep(paste(Animals,collapse="|"),linea_extraida, value=TRUE)
+  matches_feed <-grep(paste(Feed,collapse="|"),linea_extraida, value=TRUE)
+  matches_microbial <-grep(paste(Microbial,collapse="|"),linea_extraida, value=TRUE)
+  matches_clinical <-grep(paste(Clinical,collapse="|"),linea_extraida, value=TRUE)
+
+  if(sort(str_split(linea_extraida," ")[[1]] %in% Soil_S,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_soil=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% Sediment_S,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_sediment=linea_extraida}
+   if(sort(str_split(linea_extraida," ")[[1]] %in% PlantsFung_S,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_plantsfungus=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% WasteWater_S,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_wastewater=linea_extraida}
+   if(sort(str_split(linea_extraida," ")[[1]] %in% BuildEnv_S,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_buildenv=linea_extraida}
+   if(sort(str_split(linea_extraida," ")[[1]] %in% Air_S,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_air=linea_extraida}
+   if(sort(str_split(linea_extraida," ")[[1]] %in% Misc_S,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_misc=linea_extraida}
+   if(sort(str_split(linea_extraida," ")[[1]] %in% MarineW_S,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_marinew=linea_extraida}
+   if(sort(str_split(linea_extraida," ")[[1]] %in% Water_S,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_water=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% Aquaculture_S,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_aquaculture=linea_extraida}
+   if(sort(str_split(linea_extraida," ")[[1]] %in% FreshW_S,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_freshw=linea_extraida}
+   if(sort(str_split(linea_extraida," ")[[1]] %in% Faecal_S,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_faecal=linea_extraida}
+   if(sort(str_split(linea_extraida," ")[[1]] %in% Human_S,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_human=linea_extraida}
+   if(sort(str_split(linea_extraida," ")[[1]] %in% DomesticAnimals_S,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_domesticanimals=linea_extraida}
+   if(sort(str_split(linea_extraida," ")[[1]] %in% Agricultur_S,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_agricultur=linea_extraida}
+   if(sort(str_split(linea_extraida," ")[[1]] %in% Animals_S,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_animals=linea_extraida}
+   if(sort(str_split(linea_extraida," ")[[1]] %in% Feed_S,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_feed=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% Microbial_S,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_microbial=linea_extraida}
+   if(sort(str_split(linea_extraida," ")[[1]] %in% Clinical_S,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_clinical=linea_extraida}
+
+  matches_soil_ex <-grep(paste(Soil_ex,collapse="|"),linea_extraida, value=TRUE)
+  matches_sediment_ex <-grep(paste(Sediment_ex,collapse="|"),linea_extraida, value=TRUE)
+  matches_plantsfungus_ex <-grep(paste(PlantsFung_ex,collapse="|"),linea_extraida, value=TRUE)
+  matches_wastewater_ex <-grep(paste(WasteWater_ex,collapse="|"),linea_extraida, value=TRUE)
+  matches_buildenv_ex <-grep(paste(BuildEnv_ex,collapse="|"),linea_extraida, value=TRUE)
+  matches_air_ex <-grep(paste(Air_ex,collapse="|"),linea_extraida, value=TRUE)
+  matches_misc_ex <-grep(paste(Misc_ex,collapse="|"),linea_extraida, value=TRUE)
+  matches_marinew_ex <-grep(paste(MarineW_ex,collapse="|"),linea_extraida, value=TRUE)
+  matches_water_ex <-grep(paste(Water_ex,collapse="|"),linea_extraida, value=TRUE)
+  matches_aquaculture_ex <-grep(paste(Aquaculture_ex,collapse="|"),linea_extraida, value=TRUE)
+  matches_freshw_ex <-grep(paste(FreshW_ex,collapse="|"),linea_extraida, value=TRUE)
+  matches_faecal_ex <-grep(paste(Faecal_ex,collapse="|"),linea_extraida, value=TRUE)
+  matches_human_ex <-grep(paste(Human_ex,collapse="|"),linea_extraida, value=TRUE)
+  matches_domesticanimals_ex <-grep(paste(DomesticAnimals_ex,collapse="|"),linea_extraida, value=TRUE)
+  matches_agricultur_ex <-grep(paste(Agricultur_ex,collapse="|"),linea_extraida, value=TRUE)
+  matches_animals_ex <-grep(paste(Animals_ex,collapse="|"),linea_extraida, value=TRUE)
+  matches_feed_ex <-grep(paste(Feed_ex,collapse="|"),linea_extraida, value=TRUE)
+  matches_microbial_ex <-grep(paste(Microbial_ex,collapse="|"),linea_extraida, value=TRUE)
+  matches_clinical_ex <-grep(paste(Clinical_ex,collapse="|"),linea_extraida, value=TRUE)
+  
+  if(sort(str_split(linea_extraida," ")[[1]] %in% Soil_exS,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_soil_ex=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% Sediment_exS,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_sediment_ex=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% PlantsFung_exS,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_plantsfungus_ex=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% WasteWater_exS,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_wastewater_ex=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% BuildEnv_exS,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_buildenv_ex=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% Air_exS,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_air_ex=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% Misc_exS,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_misc_ex=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% MarineW_exS,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_marinew_ex=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% Water_exS,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_water_ex=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% Aquaculture_exS,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_aquaculture_ex=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% FreshW_exS,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_freshw_ex=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% Faecal_exS,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_faecal_ex=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% Human_exS,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_human_ex=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% DomesticAnimals_exS,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_domesticanimals_ex=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% Agricultur_exS,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_agricultur_ex=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% Animals_exS,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_animals_ex=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% Feed_exS,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_feed_ex=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% Microbial_exS,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_microbial_ex=linea_extraida}
+  if(sort(str_split(linea_extraida," ")[[1]] %in% Clinical_exS,decreasing = TRUE)[1]&!is.na(linea_extraida)){matches_clinical_ex=linea_extraida}
+  
+   if(length(matches_soil)>0 & length(matches_soil_ex)<1)
+  {    
+    matches_soil<-"Soil"
+  }else
+  {
+    matches_soil<-NULL
+  }
+  
+  if(length(matches_sediment)>0 & length(matches_sediment_ex)<1)
+  {
+	matches_sediment<-"Sediment"
+  }else
+  {
+    matches_sediment<-NULL
+  }
+  
+  if(length(matches_plantsfungus)>0 & length(matches_plantsfungus_ex)<1)
+  {
+	matches_plantsfungus<-"PlantFungus"
+  }else
+  {
+    matches_plantsfungus<-NULL    
+  }
+  
+  if(length(matches_wastewater)>0 & length(matches_wastewater_ex)<1)
+  {
+    matches_wastewater<-"WasteWater"
+  }else
+  {
+    matches_wastewater<-NULL
+  }
+  
+  if(length(matches_buildenv)>0 & length(matches_buildenv_ex)<1)
+  {
+	matches_buildenv<-"BuildEnv"
+  }else
+  {
+    matches_buildenv<-NULL
+  }
+  
+  if(length(matches_air)>0 & length(matches_air_ex)<1)
+  {
+	matches_air<-"Air"
+  }else
+  {
+    matches_air<-NULL
+  }
+  
+  if(length(matches_misc)>0 &
+     length(matches_soil)<1 & 
+      length(matches_sediment)<1 &   
+      length(matches_plantsfungus)<1  &
+     length(matches_wastewater)<1  &
+     length(matches_buildenv)<1   &
+     length(matches_air)<1 &  
+     length(matches_marinew)<1   &
+     length(matches_water)<1 &  
+     length(matches_freshw)<1 &  
+     length(matches_aquaculture)<1  & 
+     length(matches_animals)<1   &
+     length(matches_faecal)<1 & 
+     length(matches_human)<1 &  
+     length(matches_domesticanimals)<1 &
+     length(matches_agricultur)<1  &
+     length(matches_feed)<1 & 
+     length(matches_microbial)<1& 
+     length(matches_clinical)<1 & 
+     length(matches_misc_ex)<1)
+  {
+	matches_misc<-"Misc"
+  }else
+  {
+    matches_misc<-NULL
+  }
+  
+  if(length(matches_marinew)>0 & length(matches_marinew_ex)<1)
+  {
+	matches_marinew<-"MarineW"
+  }else
+  {
+    matches_marinew<-NULL
+  }
+  
+  if(length(matches_water)>0 & length(matches_water_ex)<1)
+  {
+	matches_water<-"Water"
+  }else
+  {
+    matches_water<-NULL
+  }
+  
+  if(length(matches_freshw)>0 & length(matches_freshw_ex)<1)
+  {
+	matches_freshw<-"FreshW"
+  }else
+  {
+    matches_freshw<-NULL
+  }
+  
+  if(length(matches_aquaculture)>0 & length(matches_aquaculture_ex)<1)
+  {
+	matches_aquaculture<-"Aquaculture"
+  }else
+  {
+    matches_aquaculture<-NULL
+  }
+  
+  if(length(matches_animals)>0 & length(matches_animals_ex)<1)
+  {
+   matches_animals<-"Animals" 
+  }else
+  {
+    matches_animals<-NULL 
+  }
+  
+  if(length(matches_faecal)>0 & length(matches_faecal_ex)<1)
+  {
+	matches_faecal<-"Faecal"
+  }else
+  {
+    matches_faecal<-NULL
+  }
+  
+  if(length(matches_human)>0  & length(matches_animals)<1 & length(matches_human_ex)<1)
+  {
+	matches_human<-"Human"
+    
+  }else
+  {
+    matches_human<-NULL
+  }
+  
+  if(length(matches_domesticanimals)>0 & length(matches_domesticanimals_ex)<1)
+  {
+	matches_domesticanimals<-"DomesticAnimal"
+    
+  }else
+  {
+    matches_domesticanimals<-NULL
+  }
+  
+  if(length(matches_agricultur)>0 & length(matches_agricultur_ex)<1)
+  {
+	matches_agricultur<-"Agriculture"    
+  }else
+  {
+    matches_agricultur<-NULL 
+  }
+  
+  if(length(matches_feed)>0 & length(matches_feed_ex)<1)
+  {
+	matches_feed<-"Feed"
+  }else
+  {
+    matches_feed<-NULL
+  }
+  
+  if(length(matches_microbial)>0 & length(matches_microbial_ex)<1)
+  {
+	matches_microbial<-"Microbial"  
+  }else
+  {
+    matches_microbial<-NULL
+  }
+  
+  if(length(matches_clinical)>0 & length(matches_animals)<1 & length(matches_plantsfungus)<1 & length(matches_clinical_ex)<1)
+  {
+	matches_clinical<-"Clinical"  
+  }else if(length(matches_clinical)>0 & (sort(str_split(linea_extraida," ")[[1]] %in% inclusion_clinical,decreasing = TRUE)[1]&!is.na(linea_extraida)))
+  {
+    matches_clinical<-"Clinical"
+  }else
+  {
+    matches_clinical<-NULL
+  }
+  
+  
+  aux_table_results2[i,5]<-paste3(matches_soil,matches_sediment,matches_plantsfungus,
+                             matches_wastewater,matches_buildenv,
+                             matches_air,matches_misc,
+                             matches_marinew,matches_water,
+                             matches_aquaculture,matches_freshw,
+                             matches_faecal,matches_human,
+                             matches_domesticanimals,matches_agricultur,
+                             matches_animals,matches_feed,
+                             matches_microbial,matches_clinical,collapse = '?') #Here we save the results for each sequences, which isolation source clusters are any of these found
+
+  matches_soil <-NULL
+  matches_sediment <-NULL
+  matches_plantsfungus <-NULL
+  matches_wastewater <-NULL
+  matches_buildenv <-NULL
+  matches_air <-NULL
+  matches_misc <-NULL
+  matches_marinew <-NULL
+  matches_water <-NULL
+  matches_aquaculture <-NULL
+  matches_freshw <-NULL
+  matches_faecal <-NULL
+  matches_human <-NULL
+  matches_domesticanimals <-NULL
+  matches_agricultur <-NULL
+  matches_animals <-NULL
+  matches_feed <-NULL
+  matches_microbial <-NULL
+  matches_clinical <-NULL
+  
+  matches_soil_ex <-NULL
+  matches_sediment_ex <-NULL
+  matches_plantsfungus_ex <-NULL
+  matches_wastewater_ex <-NULL
+  matches_buildenv_ex <-NULL
+  matches_air_ex <-NULL
+  matches_misc_ex <-NULL
+  matches_marinew_ex <-NULL
+  matches_water_ex <-NULL
+  matches_aquaculture_ex <-NULL
+  matches_freshw_ex <-NULL
+  matches_faecal_ex <-NULL
+  matches_human_ex <-NULL
+  matches_domesticanimals_ex <-NULL
+  matches_agricultur_ex <-NULL
+  matches_animals_ex <-NULL
+  matches_feed_ex <-NULL
+  matches_microbial_ex <-NULL
+  matches_clinical_ex <-NULL							 
+}
+
+for(i in 1:length(results_table[,1])) #We get the results into the axuliary table where we have all the results together
+{
+  extracted_line<-str_split(results_table[i,13],"\\?")[[1]]
+  res_lista_isolation=NULL
+  
+  for(o in 1:length(extracted_line))
+  {
+    res_lista_isolation=c(res_lista_isolation,aux_table_results2[aux_table_results2$V4 %in% extracted_line[o],5][1])
+  }
+  
+  
+  random_aux_table=data.frame(table(gsub(" ","",unlist(str_split(paste(res_lista_isolation,sep = ""),pattern = ",")),ignore.case = TRUE)))
+  random_aux_table=subset(random_aux_table, grepl('[aA-zZ]', Var1) & !grepl('NA', Var1))
+  results_table[i,15]=paste(random_aux_table$Var1,random_aux_table$Freq,collapse = ";")
+
+  extracted_line<-str_split(results_table[i,14],"\\?")[[1]]
+  res_lista_isolation=NULL
+  
+  for(o in 1:length(extracted_line))
+  {
+    res_lista_isolation=c(res_lista_isolation,aux_table_results2[aux_table_results2$V4 %in% extracted_line[o],5][1])
+  }
+  
+  random_aux_table=data.frame(table(gsub(" ","",unlist(str_split(paste(res_lista_isolation,sep = ""),pattern = ",")),ignore.case = TRUE)))
+  random_aux_table=subset(random_aux_table, grepl('[aA-zZ]', Var1) & !grepl('NA', Var1))
+  results_table[i,16]=paste(random_aux_table$Var1,random_aux_table$Freq,collapse = ";")
+}
+#################################This block is to compute pathogenic bacteria info
+
+patric<-read.delim("genome_metadata",na.strings=c("","NA")) #We get the results from Patric (https://www.patricbrc.org/)
+#patric<-read.delim("/home/parras/RESULTADOS_FINALES_NO_BORRAR/genome_metadata",na.strings=c("","NA")) #We get the results from Patric (https://www.patricbrc.org/)
+
+patric<-patric[patric[,46]=="Human, Homo sapiens",]
+patric<-patric[!is.na(patric[,64]),]
+patric[,2]<-gsub("[^0-9A-Za-z///' ]","" , patric[,2] ,ignore.case = TRUE)
+patric[,3]<-as.character(patric[,3])
+patricAMR<-read.delim("PATRIC_genomes_AMR.txt")
+#patricAMR<-read.delim("/home/parras/RESULTADOS_FINALES_NO_BORRAR/PATRIC_genomes_AMR.txt")
+
+for(i in 1:length(patric[,1]))
+{
+  patric[i,3]<-as.character(paste(str_split(gsub("'","", patric[i,2] ,ignore.case = TRUE),pattern = " ")[[1]][1],str_split(gsub("'","", patric[i,2] ,ignore.case = TRUE),pattern = " ")[[1]][2],sep = " "))
+}
+
+for(i in 1:length(patricAMR[,1]))
+{
+  patricAMR[i,17]<-as.character(paste(str_split(gsub("'","", patricAMR[i,2] ,ignore.case = TRUE),pattern = " ")[[1]][1],str_split(gsub("'","", patricAMR[i,2] ,ignore.case = TRUE),pattern = " ")[[1]][2],sep = " "))
+}
+
+for(i in 1:length(aux_table_results2[,1]))
+{
+  if(!is.na(strsplit(as.character(tab_resul[i,7]), " ")[[1]][2]))
+  {
+    if(strsplit(as.character(tab_resul[i,7]), " ")[[1]][2] == "TPA_asm:")
+    {
+      aux_table_results2[i,6]<-paste(strsplit(as.character(tab_resul[i,7]), " ")[[1]][3],strsplit(as.character(tab_resul[i,7]), " ")[[1]][4],sep = " ")
+    }else if(!isEmpty(grep("\\.1 ",as.character(tab_resul[i,7])))) 
+    {
+      aux_table_results2[i,6]<-paste(strsplit(as.character(tab_resul[i,7]), " ")[[1]][2],strsplit(as.character(tab_resul[i,7]), " ")[[1]][3],sep = " ")
+    }else
+    {
+      aux_table_results2[i,6]<-paste(strsplit(as.character(tab_resul[i,7]), " ")[[1]][1],strsplit(as.character(tab_resul[i,7]), " ")[[1]][2],sep = " ")
+      
+    }
+  }
+  
+}
+
+
+aux_table_results2[,7]=as.character(tab_resul[,5])
+
+#This is the pathogens list from WHO, orderer by clinical indicende
+lista_pathogens_WHO_red=c("Escherichia coli","Enterobacter","Serratia","Proteus"," Providencia","Morganella",
+"Acinetobacter baumannii","Pseudomonas aeruginosa","Klebsiella pneumonia","Mycobacterium")
+lista_pathogens_WHO_orange=c("Enterococcus faecium","Staphylococcus aureus","Helicobacter pylori","Campylobacter","Salmonella","Neisseria gonorrhoeae")
+lista_pathogens_WHO_yellow=c("Streptococcus pneumoniae","Haemophilus influenzae","Shigella")
+
+aux_table_results2[,8]=NA
+
+for(i in 1:length(aux_table_results2[,1]))
+{
+  if(aux_table_results2[i,6] %in% patric[,3])
+  {
+    aux_table_results2[i,8]<-"Pathogenic"
+    if(aux_table_results2[i,6] %in% patricAMR[,17])
+    {
+      aux_table_results2[i,8]<-"AMR"
+    }
+  }
+
+  if(dim(aux_table_results2[grep(paste(lista_pathogens_WHO_red,collapse="|"),aux_table_results2[i,6]),])[1]>0)
+  {
+	aux_table_results2[i,8]<-"Red"
+  }else if(dim(aux_table_results2[grep(paste(lista_pathogens_WHO_orange,collapse="|"),aux_table_results2[i,6]),])[1]>0)
+  {
+	aux_table_results2[i,8]<-"Orange"
+  }else if(dim(aux_table_results2[grep(paste(lista_pathogens_WHO_yellow,collapse="|"),aux_table_results2[i,6]),])[1]>0)
+  {
+	aux_table_results2[i,8]<-"Yellow"
+  }
+}
+
+aux_table_results2[,6]<-aux_table_results2[,8]
+aux_table_results2<-aux_table_results2[,-7]
+aux_table_results2<-aux_table_results2[,-7]
+
+for(i in 1:length(results_table[,1]))
+{
+  results_table[i,17]<-paste3(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,4]),";")[[1]],6],collapse = '?')
+  results_table[i,18]<-paste3(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,5]),";")[[1]],6],collapse = '?')
+  results_table[i,19]<-paste("Pathogenic: ",length(grep("Pathogenic",str_split(results_table[i,17],"\\?")[[1]])),"AMR: ",length(grep("AMR",str_split(results_table[i,17],"\\?")[[1]])))
+  results_table[i,20]<-paste("Pathogenic: ",length(grep("Pathogenic",str_split(results_table[i,18],"\\?")[[1]])),"AMR: ",length(grep("AMR",str_split(results_table[i,18],"\\?")[[1]])))
+}
+
+results_table<-results_table[,-c(17,18)]
+
+
+################### Get the info from Blat results into the results table
+
+results_table[,19:22]<-NA
+
+for(i in 1:length(results_table[,1]))
+{
+  if(!isEmpty(as.character(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,4]),";")[[1]] & aux_table_results2[,3]>90,2])))
+  {
+    results_table[i,19]<-paste3(as.character(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,4]),";")[[1]] & aux_table_results2[,3]>90,2]),collapse = '?')
+  }
+  if(!isEmpty(as.character(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,4]),";")[[1]] & aux_table_results2[,3]<90,2])))
+  {
+    results_table[i,21]<-paste3(as.character(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,4]),";")[[1]] & aux_table_results2[,3]<90,2]),collapse = '?')
+  }
+  if(!isEmpty(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,4]),";")[[1]] & aux_table_results2[,3]>90,3]))
+  {
+    results_table[i,20]<-paste3(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,4]),";")[[1]] & aux_table_results2[,3]>90,3],collapse = '?')
+  }
+  if(!isEmpty(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,4]),";")[[1]] & aux_table_results2[,3]<90,3]))
+  { 
+    results_table[i,22]<-paste3(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,4]),";")[[1]] & aux_table_results2[,3]<90,3],collapse = '?')
+  }
+}
+
+results_table[,23:26]<-NA
+
+for(i in 1:length(results_table[,1]))
+{
+  if(!isEmpty(as.character(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,5]),";")[[1]] & aux_table_results2[,3]>90,2])))
+  {
+    results_table[i,23]<-paste3(as.character(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,5]),";")[[1]] & aux_table_results2[,3]>90,2]),collapse = '?')
+  }
+  if(!isEmpty(as.character(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,5]),";")[[1]] & aux_table_results2[,3]<90,2])))
+  {
+    results_table[i,25]<-paste3(as.character(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,5]),";")[[1]] & aux_table_results2[,3]<90,2]),collapse = '?')
+  }
+  if(!isEmpty(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,5]),";")[[1]] & aux_table_results2[,3]>90,3]))
+  {
+    results_table[i,24]<-paste3(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,5]),";")[[1]] & aux_table_results2[,3]>90,3],collapse = '?')
+  }
+  if(!isEmpty(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,5]),";")[[1]] & aux_table_results2[,3]<90,3]))
+  { 
+    results_table[i,26]<-paste3(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,5]),";")[[1]] & aux_table_results2[,3]<90,3],collapse = '?')
+  }
+}
+
+########## Save the distance results into the table
+
+pairwise_table<-distance_results
+
+results_table[,27]<-pairwise_table[,2]
+results_table[,28]<-pairwise_table[,3]
+
+######## Info de plasmid para circulo QUITAR??
+
+name_plas<-info_plasmids
+
+colnames(name_plas)="MGE"
+aux_table_results2[,7]=name_plas[,1]
+plasmids_group_paper=read.delim("Plasmids_groups.txt",sep = "\t",header = F)
+#plasmids_group_paper=read.delim("/storage/parras/databaseR/Tablas_taxa/Descargar_plasmids_interesantes_paper/Plasmids_groups_script_file.txt",sep = "\t",header = F)
+
+name_plas[,1]=as.character(name_plas[,1])
+
+for(i in 1:length(name_plas[,1]))
+{
+	if(strsplit(as.character(rownames(name_plas)[i]), "\\.")[[1]][1] %in% plasmids_group_paper[,1])
+	{
+		name_plas[i,1]=tail(as.character(plasmids_group_paper[plasmids_group_paper[,1] %in% strsplit(as.character(rownames(name_plas)[i]), "\\.")[[1]][1],2]),n=1)
+	}
+}
+
+
+########## Now we process all the information to get a tree plotted with all the information we have about each sequence
+
+phyla<-c("Abditibacteriota","Acidobacteria","Actinobacteria","Armatimonadetes","Bacteroidetes",
+         "Balneolaeota","Caldiserica","Calditrichaeota","Candidate division KSB1","Candidate division TM6",
+         "Candidate division WOR-1","Candidate division WPS-2","Candidatus Accumulibacter","Candidatus Aminicenantes","Candidatus Competibacteraceae",
+         "Candidatus Cryosericota","Candidatus Delongbacteria","Candidatus Dependentiae","Candidatus Eisenbacteria","Candidatus Eremiobacteraeota",
+         "Candidatus Kapabacteria","Candidatus Kerfeldbacteria","Candidatus Kryptonia","Candidatus Latescibacteria","Candidatus Lindowbacteria",
+         "Candidatus Margulisbacteria","Candidatus Marinimicrobia","Candidatus Melainabacteria","Candidatus Omnitrophica","Candidatus Peregrinibacteria",
+         "Candidatus Saccharibacteria","Candidatus Sumerlaeota","Candidatus Wallbacteria","Chlamydiae","Chlorobi",
+         "Chloroflexi","Cyanobacteria","Deinococcus-Thermus","Elusimicrobia","Fibrobacteres",
+         "Firmicutes","Fusobacteria","Gemmatimonadetes","Ignavibacteriae","Lentisphaerae",
+         "Nitrospirae","Nitrospinae","Planctomycetes","Proteobacteria","Rhodothermaeota","Spirochaetes",
+         "Synergistetes","Tenericutes","Verrucomicrobia","Thermotogae","Dictyoglomi")
+
+colours_phyla<-c("#FCFFA4","#991914","#267C03","#4c4cb2","#E2AC6F",
+                 "#FFA6AF","#9eff99","#8d8af2","#000000","#000000",
+                 "#000000","#000000","#000000","#000000","#000000",
+                 "#000000","#000000","#000000","#000000","#000000",
+                 "#000000","#000000","#000000","#000000","#000000",
+                 "#000000","#000000","#000000","#000000","#000000",
+                 "#000000","#000000","#000000","#E0FF99","#89f3ff",
+                 "#f49b0c","#f4b2bd","#30840e","#e81078","#f2ca8a",
+                 "#6C74AF","#33ce5a","#db677a","#f458da","#2667ff",
+                 "#ff7563","#B983FF","#7bed82","#E83B68","#eec9ff","#A5C1E5",
+                 "#d3442e","#574cce","#DDD547","#8C543A","#8B3E2F")
+
+patho<-c("Pathogenic","AMR","Red","Orange","Yellow")
+colours_patho<-c("#D85B8D","#8DE8B0","#FF0000","#FFA500","#FFFF00")
+plasmids_var=c("Plasmid","I","II","III","IV","V","VI")
+colours_plasmid<-c("grey80","#ff7563","#B983FF","#7bed82","#E83B68","#A5C1E5","#eec9ff")
+color_summed<-as.list(setNames(colours_phyla,phyla))
+color_patho_summer<-as.list(setNames(colours_patho,patho))
+color_plasmid_summer<-as.list(setNames(colours_plasmid,plasmids_var))
+
+name_fil<-data.frame(aux_table_results2[,1])
+row.names(name_fil)<-row.names(aux_table_results2)
+colnames(name_fil)<-"Phylum"
+name_per<-data.frame(aux_table_results2[,3])
+row.names(name_per)<-row.names(aux_table_results2)
+colnames(name_per)<-"Blast best hit %"
+name_prot<-data.frame(aux_table_results2[,2])
+row.names(name_prot)<-row.names(aux_table_results2)
+name_prot[,1]=as.character(name_prot[,1])
+
+for(i in 1:length(name_prot[,1]))
+{
+  if(!isEmpty(grep("-",as.character(name_prot[i,1]))))
+  {
+    name_prot[i,1]=sapply(strsplit(as.character(aux_table_results2[i,2]), "-"), "[[", 1)
+  }else
+  {
+    name_prot[i,1]=sapply(strsplit(as.character(aux_table_results2[i,2]), "_"), "[[", 1)
+  }
+}								 
+colnames(name_prot)<-"Protein"
+name_source<-data.frame(aux_table_results2[,5])
+row.names(name_source)<-row.names(aux_table_results2)
+colnames(name_source)<-"Isolation source"
+name_pat<-data.frame(aux_table_results2[,6])
+row.names(name_pat)<-row.names(aux_table_results2)
+colnames(name_pat)<-"Pathogenicity"
+
+color_arboles_tunned<-data.frame(matrix(ncol = 5,nrow = 26))
+rownames(color_arboles_tunned)<-c("class_a","class_b_1_2","class_c","class_b_3","class_d_1","class_d_2","qnr","tet_efflux","tet_enzyme","tet_rpg","macrolide_phosphotransferases","methyltransferase_grp1","methyltransferase_grp2","class_d_1_2","methyltransferase_grp_1_2","aac2p","aac3_class1","aac3_class2","aac6p_class1","aac6p_class2","aac6p_class3","aph2b","aph3p","aph6","aac6p_complete","16S_RMT");
+
+color_arboles_tunned[,5]=c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0)
+color_arboles_tunned[,1]=c(1,1,1,1,1,1,1,1,0.5,1,1,1,1,1,1,1,1,0.5,1,1,1,1,1,1,1,0.5)
+color_arboles_tunned[,2]=c(16,10,14.5,18.5,11,11,11,16,8.5,30,14,11,11,33.5,12.5,5.5,5.5,11,15,19,6,10.5,14,20,25,5)
+color_arboles_tunned[,3]=c(23.5,14,20,26,16,16,15.5,23,12,42.5,19.5,16,16,47,17,7.5,7.5,15.5,21,27,8,14.5,20,28,35.5,7.5)
+color_arboles_tunned[,4]=c(140,65,105,160,65,235,80,145,18,215,100,65,85,205,160,150,150,150,150,150,150,150,150,150,150,150)
+
+#elemento_impr=args[1]
+class_to_print="tet_enzyme"
+
+p8<-ggtree(tree_l,layout = 'circular',branch.length='none') +
+  geom_tiplab(size=0) + geom_point2(aes(subset=(node %in% Nodes_to_color)),color="green",size=2) + geom_nodelab2(aes(subset=(node %in% Nodes_to_color)),color="red",size=5)
+
+p8 <- gheatmap(p8, name_fil, offset=color_arboles_tunned[row.names(color_arboles_tunned)==class_to_print,1], width=.1,
+               colnames_angle=90, colnames_offset_y = .25,color = NULL) +
+ scale_fill_manual(values=color_summed)
+
+
+p8 <- p8 + new_scale_fill()
+p8<-gheatmap(p8, name_per, offset=color_arboles_tunned[row.names(color_arboles_tunned)==class_to_print,3], width=.05,
+             colnames_angle=90, colnames_offset_y = .25,color=NULL) +
+  scale_fill_viridis_c(option="B", name="Blast best hit %")
+
+
+p8<- p8 + new_scale_fill()
+p8<-gheatmap(p8, name_pat, offset=color_arboles_tunned[row.names(color_arboles_tunned)==class_to_print,4], width=.05,
+             colnames_angle=90, colnames_offset_y = .25,color = NULL) +
+  scale_fill_manual(values=color_patho_summer)
+
+p8<- p8 + new_scale_fill()
+p8<-gheatmap(p8, name_plas, offset=color_arboles_tunned[row.names(color_arboles_tunned)==class_to_print,5], width=.025,
+             colnames_angle=90, colnames_offset_y = .25,color = NULL) +
+  scale_fill_manual(values=color_plasmid_summer)
+
+p8<- p8 + new_scale_fill()
+p8<-gheatmap(p8, name_prot, offset=color_arboles_tunned[row.names(color_arboles_tunned)==class_to_print,2], width=.05,
+             colnames_angle=90, colnames_offset_y = .25,color = NULL) +
+  scale_fill_manual(values=randomColor(length(levels(factor(name_prot[,1])))))  #+ theme(legend.position = "none") #####DEJAR DE SILENCIAR SI HAY MUCHAS PROT
+
+
+
+
+pdf("Circular_tree.pdf",height = 20, width = 20) #All information is printed and saved
+plot(p8)
+dev.off()
+
+aux_table_results3<-aux_table_results2
+colnames(aux_table_results3)=c("Phylum","Related protein","% Similarity","Isolation","Isolation_cluster","Pathogenicity","MGE")
+write.table(aux_table_results3,"Metadata_sequences_info.txt",sep = "\t",quote = F)
+
+resultados2<-results_table
+colnames(resultados2)=c("Node","Phylum1","Phylum2","Species1","Species2","NSpe1","NSpe2","Block1","Block2","Block3","NSeqsPlasmids1","NSeqsPlasmids2",
+                        "IsolationSource1","IsolationSource2","Conteo1","Conteo2","Patho1","Patho2","Known Prot 1","Identity - known prot 1","New Prot 1",
+                        "Identity - new prot 1","Known Prot 2","Identity - known prot 2","New Prot 2","Identity - new prot 2","Min Pair","Max Pair")
+write.table(resultados2,"Events_results.txt",sep = "\t",row.names = F,quote = F)
+
+resultados_min<-resultados2[,c(1,2,3,6,7,11,12,13,14,15,16,17,18,20,22,24,26,27,28)]
+write.table(resultados_min,"Events_results_min.txt",sep = "\t",row.names = F,quote = F)
