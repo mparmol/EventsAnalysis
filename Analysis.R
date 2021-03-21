@@ -210,52 +210,8 @@ Nodes_to_color<-unique(edge_table[edge_table$par.name %in% results_table$X1,1])
 #plot(p8)
 #dev.off()
 
-plasmids_ids_table=read.delim("total_ids_plasmid.txt",sep="\t",header = F) ##From this poitn we compute the information about plasmids
-#plasmids_ids_table=read.delim("/home/parras/RESULTADOS_FINALES_NO_BORRAR/total_ids_plasmid.txt",sep="\t",header = F) ##From this poitn we compute the information about plasmids
-info_plasmids=data.frame(matrix(ncol=1,nrow = length(aux_table_results2[,1])))
-rownames(info_plasmids)=rownames(aux_table_results2)
-info_plasmids[,1]=data.frame(sapply(strsplit(as.character(rownames(info_plasmids)), "_"), "[[", 1))
-info_plasmids[info_plasmids[,1] %in% plasmids_ids_table[,1],2]="Plasmid"
-info_plasmids=data.frame(info_plasmids[,-1])
-rownames(info_plasmids)=rownames(aux_table_results2)
-
-for(i in 1:length(results_table[,1]))
-{
-  if(!is.na(results_table[i,4]))
-  {
-    random_var=data.frame(str_split(as.character(results_table[i,4]),";")[[1]])
-    random_var2=data.frame(sapply(strsplit(as.character(random_var[,1]), "_"), "[[", 1))
-    
-	if(length(random_var2[random_var2[,1] %in% plasmids_ids_table[,1],1])>0)
-	{
-		results_table[i,11]=paste(rep("Plasmid",length(random_var2[random_var2[,1] %in% plasmids_ids_table[,1],1])),collapse = ";")  
-  	}else
-	{
-		results_table[i,11]=NA
-	}	
-  }else
-  {
-    results_table[i,11]=NA
-  }
-  if(!is.na(results_table[i,5]))
-  {
-    random_var=data.frame(str_split(as.character(results_table[i,5]),";")[[1]])
-    random_var2=data.frame(sapply(strsplit(as.character(random_var[,1]), "_"), "[[", 1))
-	if(length(random_var2[random_var2[,1] %in% plasmids_ids_table[,1],1])>0)
-	{
-    		results_table[i,12]=paste(rep("Plasmid",length(random_var2[random_var2[,1] %in% plasmids_ids_table[,1],1])),collapse = ";") 
-	}else
-	{
-		results_table[i,12]=NA
-	}  
-  }else
-  {
-    results_table[i,12]=NA
-  }
-}
-
-#write.table(results_table,"resultados_discrepacias.txt",sep = "\t",row.names = F,col.names = F,quote = F)
-#write.table(info_plasmids,"resultados_plasmids.txt",sep = "\t",col.names = F,quote = F)
+results_table[,11]=NA
+results_table[,12]=NA
 
 ################## Here we load the Blast result computed before
 
@@ -291,22 +247,10 @@ for(i in 1:length(aux_table_results2[,1]))
   }
 }
 
-results_table[,11]<-as.character(results_table[,11])
-results_table[,12]<-as.character(results_table[,12])
-
 for(i in 1:length(results_table[,1]))
 {
   results_table[i,13]<-paste3(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,4]),";")[[1]],4],collapse = '?')
   results_table[i,14]<-paste3(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,5]),";")[[1]],4],collapse = '?')
-  
-	if(!is.na(results_table[i,11]) & !isEmpty(results_table[i,11]))
-	{
-  	results_table[i,11]<-as.character(length(str_split(results_table[i,11],";")[[1]]))
-  	}
-	if(!is.na(results_table[i,12]) & !isEmpty(results_table[i,12]))
-	{
-	results_table[i,12]<-as.character(length(str_split(results_table[i,12],";")[[1]]))
-	}
 }
 
 
@@ -813,93 +757,10 @@ for(i in 1:length(results_table[,1])) #We get the results into the axuliary tabl
 }
 #################################This block is to compute pathogenic bacteria info
 
-patric<-read.delim("genome_metadata",na.strings=c("","NA")) #We get the results from Patric (https://www.patricbrc.org/)
-#patric<-read.delim("/home/parras/RESULTADOS_FINALES_NO_BORRAR/genome_metadata",na.strings=c("","NA")) #We get the results from Patric (https://www.patricbrc.org/)
-
-patric<-patric[patric[,46]=="Human, Homo sapiens",]
-patric<-patric[!is.na(patric[,64]),]
-patric[,2]<-gsub("[^0-9A-Za-z///' ]","" , patric[,2] ,ignore.case = TRUE)
-patric[,3]<-as.character(patric[,3])
-patricAMR<-read.delim("PATRIC_genomes_AMR.txt")
-#patricAMR<-read.delim("/home/parras/RESULTADOS_FINALES_NO_BORRAR/PATRIC_genomes_AMR.txt")
-
-for(i in 1:length(patric[,1]))
-{
-  patric[i,3]<-as.character(paste(str_split(gsub("'","", patric[i,2] ,ignore.case = TRUE),pattern = " ")[[1]][1],str_split(gsub("'","", patric[i,2] ,ignore.case = TRUE),pattern = " ")[[1]][2],sep = " "))
-}
-
-for(i in 1:length(patricAMR[,1]))
-{
-  patricAMR[i,17]<-as.character(paste(str_split(gsub("'","", patricAMR[i,2] ,ignore.case = TRUE),pattern = " ")[[1]][1],str_split(gsub("'","", patricAMR[i,2] ,ignore.case = TRUE),pattern = " ")[[1]][2],sep = " "))
-}
-
-for(i in 1:length(aux_table_results2[,1]))
-{
-  if(!is.na(strsplit(as.character(tab_resul[i,7]), " ")[[1]][2]))
-  {
-    if(strsplit(as.character(tab_resul[i,7]), " ")[[1]][2] == "TPA_asm:")
-    {
-      aux_table_results2[i,6]<-paste(strsplit(as.character(tab_resul[i,7]), " ")[[1]][3],strsplit(as.character(tab_resul[i,7]), " ")[[1]][4],sep = " ")
-    }else if(!isEmpty(grep("\\.1 ",as.character(tab_resul[i,7])))) 
-    {
-      aux_table_results2[i,6]<-paste(strsplit(as.character(tab_resul[i,7]), " ")[[1]][2],strsplit(as.character(tab_resul[i,7]), " ")[[1]][3],sep = " ")
-    }else
-    {
-      aux_table_results2[i,6]<-paste(strsplit(as.character(tab_resul[i,7]), " ")[[1]][1],strsplit(as.character(tab_resul[i,7]), " ")[[1]][2],sep = " ")
-      
-    }
-  }
-  
-}
-
-
-aux_table_results2[,7]=as.character(tab_resul[,5])
-
-#This is the pathogens list from WHO, orderer by clinical indicende
-lista_pathogens_WHO_red=c("Escherichia coli","Enterobacter","Serratia","Proteus"," Providencia","Morganella",
-"Acinetobacter baumannii","Pseudomonas aeruginosa","Klebsiella pneumonia","Mycobacterium")
-lista_pathogens_WHO_orange=c("Enterococcus faecium","Staphylococcus aureus","Helicobacter pylori","Campylobacter","Salmonella","Neisseria gonorrhoeae")
-lista_pathogens_WHO_yellow=c("Streptococcus pneumoniae","Haemophilus influenzae","Shigella")
-
-aux_table_results2[,8]=NA
-
-for(i in 1:length(aux_table_results2[,1]))
-{
-  if(aux_table_results2[i,6] %in% patric[,3])
-  {
-    aux_table_results2[i,8]<-"Pathogenic"
-    if(aux_table_results2[i,6] %in% patricAMR[,17])
-    {
-      aux_table_results2[i,8]<-"AMR"
-    }
-  }
-
-  if(dim(aux_table_results2[grep(paste(lista_pathogens_WHO_red,collapse="|"),aux_table_results2[i,6]),])[1]>0)
-  {
-	aux_table_results2[i,8]<-"Red"
-  }else if(dim(aux_table_results2[grep(paste(lista_pathogens_WHO_orange,collapse="|"),aux_table_results2[i,6]),])[1]>0)
-  {
-	aux_table_results2[i,8]<-"Orange"
-  }else if(dim(aux_table_results2[grep(paste(lista_pathogens_WHO_yellow,collapse="|"),aux_table_results2[i,6]),])[1]>0)
-  {
-	aux_table_results2[i,8]<-"Yellow"
-  }
-}
-
-aux_table_results2[,6]<-aux_table_results2[,8]
-aux_table_results2<-aux_table_results2[,-7]
-aux_table_results2<-aux_table_results2[,-7]
-
-for(i in 1:length(results_table[,1]))
-{
-  results_table[i,17]<-paste3(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,4]),";")[[1]],6],collapse = '?')
-  results_table[i,18]<-paste3(aux_table_results2[rownames(aux_table_results2) %in% str_split(as.character(results_table[i,5]),";")[[1]],6],collapse = '?')
-  results_table[i,19]<-paste("Pathogenic: ",length(grep("Pathogenic",str_split(results_table[i,17],"\\?")[[1]])),"AMR: ",length(grep("AMR",str_split(results_table[i,17],"\\?")[[1]])))
-  results_table[i,20]<-paste("Pathogenic: ",length(grep("Pathogenic",str_split(results_table[i,18],"\\?")[[1]])),"AMR: ",length(grep("AMR",str_split(results_table[i,18],"\\?")[[1]])))
-}
-
-results_table<-results_table[,-c(17,18)]
-
+aux_table_results2[,6]<-NA
+aux_table_results2[,7]<-NA
+results_table[i,17]<-NA
+results_table[i,18]<-NA
 
 ################### Get the info from Blat results into the results table
 
@@ -954,25 +815,6 @@ pairwise_table<-distance_results
 results_table[,27]<-pairwise_table[,2]
 results_table[,28]<-pairwise_table[,3]
 
-######## Info de plasmid para circulo QUITAR??
-
-name_plas<-info_plasmids
-
-colnames(name_plas)="MGE"
-aux_table_results2[,7]=name_plas[,1]
-plasmids_group_paper=read.delim("Plasmids_groups.txt",sep = "\t",header = F)
-#plasmids_group_paper=read.delim("/storage/parras/databaseR/Tablas_taxa/Descargar_plasmids_interesantes_paper/Plasmids_groups_script_file.txt",sep = "\t",header = F)
-
-name_plas[,1]=as.character(name_plas[,1])
-
-for(i in 1:length(name_plas[,1]))
-{
-	if(strsplit(as.character(rownames(name_plas)[i]), "\\.")[[1]][1] %in% plasmids_group_paper[,1])
-	{
-		name_plas[i,1]=tail(as.character(plasmids_group_paper[plasmids_group_paper[,1] %in% strsplit(as.character(rownames(name_plas)[i]), "\\.")[[1]][1],2]),n=1)
-	}
-}
-
 
 ########## Now we process all the information to get a tree plotted with all the information we have about each sequence
 
@@ -1000,13 +842,7 @@ colours_phyla<-c("#FCFFA4","#991914","#267C03","#4c4cb2","#E2AC6F",
                  "#ff7563","#B983FF","#7bed82","#E83B68","#eec9ff","#A5C1E5",
                  "#d3442e","#574cce","#DDD547","#8C543A","#8B3E2F")
 
-patho<-c("Pathogenic","AMR","Red","Orange","Yellow")
-colours_patho<-c("#D85B8D","#8DE8B0","#FF0000","#FFA500","#FFFF00")
-plasmids_var=c("Plasmid","I","II","III","IV","V","VI")
-colours_plasmid<-c("grey80","#ff7563","#B983FF","#7bed82","#E83B68","#A5C1E5","#eec9ff")
 color_summed<-as.list(setNames(colours_phyla,phyla))
-color_patho_summer<-as.list(setNames(colours_patho,patho))
-color_plasmid_summer<-as.list(setNames(colours_plasmid,plasmids_var))
 
 name_fil<-data.frame(aux_table_results2[,1])
 row.names(name_fil)<-row.names(aux_table_results2)
@@ -1033,8 +869,6 @@ name_source<-data.frame(aux_table_results2[,5])
 row.names(name_source)<-row.names(aux_table_results2)
 colnames(name_source)<-"Isolation source"
 name_pat<-data.frame(aux_table_results2[,6])
-row.names(name_pat)<-row.names(aux_table_results2)
-colnames(name_pat)<-"Pathogenicity"
 
 color_arboles_tunned<-data.frame(matrix(ncol = 5,nrow = 26))
 rownames(color_arboles_tunned)<-c("class_a","class_b_1_2","class_c","class_b_3","class_d_1","class_d_2","qnr","tet_efflux","tet_enzyme","tet_rpg","macrolide_phosphotransferases","methyltransferase_grp1","methyltransferase_grp2","class_d_1_2","methyltransferase_grp_1_2","aac2p","aac3_class1","aac3_class2","aac6p_class1","aac6p_class2","aac6p_class3","aph2b","aph3p","aph6","aac6p_complete","16S_RMT");
@@ -1061,17 +895,6 @@ p8<-gheatmap(p8, name_per, offset=color_arboles_tunned[row.names(color_arboles_t
              colnames_angle=90, colnames_offset_y = .25,color=NULL) +
   scale_fill_viridis_c(option="B", name="Blast best hit %")
 
-
-p8<- p8 + new_scale_fill()
-p8<-gheatmap(p8, name_pat, offset=color_arboles_tunned[row.names(color_arboles_tunned)==class_to_print,4], width=.05,
-             colnames_angle=90, colnames_offset_y = .25,color = NULL) +
-  scale_fill_manual(values=color_patho_summer)
-
-p8<- p8 + new_scale_fill()
-p8<-gheatmap(p8, name_plas, offset=color_arboles_tunned[row.names(color_arboles_tunned)==class_to_print,5], width=.025,
-             colnames_angle=90, colnames_offset_y = .25,color = NULL) +
-  scale_fill_manual(values=color_plasmid_summer)
-
 p8<- p8 + new_scale_fill()
 p8<-gheatmap(p8, name_prot, offset=color_arboles_tunned[row.names(color_arboles_tunned)==class_to_print,2], width=.05,
              colnames_angle=90, colnames_offset_y = .25,color = NULL) +
@@ -1085,12 +908,12 @@ plot(p8)
 dev.off()
 
 aux_table_results3<-aux_table_results2
-colnames(aux_table_results3)=c("Phylum","Related protein","% Similarity","Isolation","Isolation_cluster","Pathogenicity","MGE")
+colnames(aux_table_results3)=c("Phylum","Related protein","% Similarity","Isolation","Isolation_cluster","NA1","NA2")
 write.table(aux_table_results3,"Metadata_sequences_info.txt",sep = "\t",quote = F)
 
 resultados2<-results_table
-colnames(resultados2)=c("Node","Phylum1","Phylum2","Species1","Species2","NSpe1","NSpe2","Block1","Block2","Block3","NSeqsPlasmids1","NSeqsPlasmids2",
-                        "IsolationSource1","IsolationSource2","Conteo1","Conteo2","Patho1","Patho2","Known Prot 1","Identity - known prot 1","New Prot 1",
+colnames(resultados2)=c("Node","Phylum1","Phylum2","Species1","Species2","NSpe1","NSpe2","Block1","Block2","Block3","NA1","NA2",
+                        "IsolationSource1","IsolationSource2","Count1","Count2","NA3","NA4","Known Prot 1","Identity - known prot 1","New Prot 1",
                         "Identity - new prot 1","Known Prot 2","Identity - known prot 2","New Prot 2","Identity - new prot 2","Min Pair","Max Pair")
 write.table(resultados2,"Events_results.txt",sep = "\t",row.names = F,quote = F)
 
