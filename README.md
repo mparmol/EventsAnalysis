@@ -4,7 +4,7 @@
 
 ## **R code for: Parras-Moltó & , 2021**
 
-This document describes the use of Analysis.R. The evolutionary process of Antibiotic resistance genes (ARGs) could be studied by the flow of genetic information between different phyla bacteria, what we call as events. Events are described as node-points within the tree with two branches that belong to at least two different phyla. Within this sscript we will use a tree based on the sequence aligment of ARGs of each class and their related taxonomy to define where events happens.
+This document describes the use of Analysis.R. The evolutionary process of Antibiotic resistance genes (ARGs) could be studied by the flow of genetic information between different phyla bacteria, what we call as events. Events are described as node-points within the tree with two branches that belong to at least two different phyla. Within this script we will use a tree based on the sequence aligment of ARGs of each class and their related taxonomy to define where events happens.
 
     R version 3.6.1 (2019-07-05)
 
@@ -18,23 +18,23 @@ This document describes the use of Analysis.R. The evolutionary process of Antib
 
 · `data.table` v1.13.2. data.table inherits from data.frame. It offers fast and memory efficient: file reader and writer, aggregations, updates, equi, non-equi, rolling, range and interval joins, in a short and flexible syntax, for faster development.
 
-· `ggnewscale` v0.4.4. Use multiple fill and colour scales in 'ggplot2
+· `ggnewscale` v0.4.4. Use multiple fill and colour scales in 'ggplot2.
 
-· `ggplot2` v3.3.2. A system for 'declaratively' creating graphics, based on "The Grammar of Graphics". You provide the data, tell 'ggplot2' how to map variables to aesthetics, what graphical primitives to use, and it takes care of the details
+· `ggplot2` v3.3.2. A system for 'declaratively' creating graphics, based on "The Grammar of Graphics". You provide the data, tell 'ggplot2' how to map variables to aesthetics, what graphical primitives to use, and it takes care of the details.
 
 · `ggtree` v1.16.6. Visualizing phylogenetic tree and heterogenous associated data based on grammar of graphics ggtree provides functions for visualizing phylogenetic tree and its associated data in R.
 
-· `phangorn` v2.5.5. Phylogenetic analysis in R (Estimation of phylogenetic trees and networks using Maximum Likelihood, Maximum Parsimony, Distance methods & Hadamard conjugation)
+· `phangorn` v2.5.5. Phylogenetic analysis in R (Estimation of phylogenetic trees and networks using Maximum Likelihood, Maximum Parsimony, Distance methods & Hadamard conjugation).
 
-· `randomcoloR` v1.1.0.1. Simple methods to generate attractive random colors
+· `randomcoloR` v1.1.0.1. Simple methods to generate attractive random colors.
 
-· `reshape2` v1.4.4. Flexibly restructure and aggregate data using just two functions: melt and 'dcast' (or 'acast')
+· `reshape2` v1.4.4. Flexibly restructure and aggregate data using just two functions: melt and 'dcast' (or 'acast').
 
-· `stringr` v1.4.0. A consistent, simple and easy to use set of wrappers around the fantastic 'stringi' package. All function and argument names (and positions) are consistent, all functions deal with "NA"'s and zero length vectors in the same way, and the output from one function is easy to feed into the input of another
+· `stringr` v1.4.0. A consistent, simple and easy to use set of wrappers around the fantastic 'stringi' package. All function and argument names (and positions) are consistent, all functions deal with "NA"'s and zero length vectors in the same way, and the output from one function is easy to feed into the input of another.
 
 **Files located in the same folder as the script**
 
-1- tree. Unrooted tree created following paper methods.
+1- tree\_file. Unrooted tree created following paper methods.
 
 2- Taxonomy.txt. This file contains the taxonomy asociated to each sequence.
 
@@ -85,7 +85,7 @@ head(tab_resul)
 ## CM000740.1_seq1-Bacillus_cereus                       Bacillus cereus
 ```
 
-3- Blast\_Antibiotic\_analysis. Blast result agains ResFinder database
+3- Blast\_Antibiotic\_analysis. Blast result against ResFinder database.
 
 ``` r
 blast_results<-read.delim("Blast_Antibiotic_analysis",sep="\t",header=F)
@@ -106,7 +106,7 @@ head(blast_results)
 ## 6  5  1 399  1 1158  1.41e-85 262
 ```
 
-4- Total\_isolation.txt. Here we have all the metadata for all sequences
+4- Total\_isolation.txt. Here we have all the metadata for all sequences.
 
 ``` r
 isolation=as.data.frame(fread("Total_isolation.txt",header=F,sep="\t",na.strings=c("","NA")))
@@ -147,36 +147,15 @@ head(isolation)
 isolation_criteria<-read.table("isolation_criteria.txt", na.strings=c("","NA"),row.names = 1,sep = '\t',header = F)
 ```
 
-6- isolation\_exclusion\_criteria.txt.In this list we have all the terms that are excluded from any group to avoid ambiguity
+6- isolation\_exclusion\_criteria.txt. In this list we have all the terms that are excluded from any group to avoid ambiguity.
 
 ``` r
 isolation_exclusion_criteria<-read.table("isolation_exclusion_criteria.txt", na.strings=c("","NA"),row.names = 1,sep = '\t',header = F)
 ```
 
-7- genome\_metadata and PATRIC\_genomes\_AMR.txt. These files contains the information about pathogenic and clinical relevant bacteria
-
-``` r
-patric<-read.delim("genome_metadata",na.strings=c("","NA")) #We get the results from Patric (https://www.patricbrc.org/)
-patricAMR<-read.delim("PATRIC_genomes_AMR.txt")
-```
-
-8- Plasmids\_groups.txt. In this file we can find the clustering of plasmids depending between which groups do they flow
-
-``` r
-plasmids_group_paper=read.delim("Plasmids_groups.txt",sep = "\t",header = F)
-head(plasmids_group_paper)
-##         V1 V2
-## 1 AB823544  I
-## 2 AE006469  I
-## 3 AF056496  I
-## 4 AF092037  I
-## 5 AF207855  I
-## 6 AF244083  I
-```
-
 The sript will calculate all events a circular tree is plotted using all the information we have for each sequence: Taxonomy, Percentage blast similarity, most related protein name, pathogenicity and if they are plasmids.
 
-<img src="README_figs/README-unnamed-chunk-11-1.png" width="672" />
+<img src="README_figs/README-unnamed-chunk-8-1.png" width="672" />
 
 Output results are found in three different files:
 
@@ -198,20 +177,13 @@ head(aux_table_results3)
 ## EQ973223.1_seq1-Bacteroides_fragilis             99.743      <NA>
 ## CM000718.1_seq1-Bacillus_wiedmannii              41.646      <NA>
 ## CM000740.1_seq1-Bacillus_cereus                  41.103      <NA>
-##                                               Isolation_cluster Pathogenicity
-## CP001778.1_seq1-Stackebrandtia_nassauensis Soil, , , , , , , ,           <NA>
-## CP001814.1_seq1-Streptosporangium_roseum                   <NA>          <NA>
-## FN650140.1_seq1-Legionella_longbeachae                     <NA>    Pathogenic
-## EQ973223.1_seq1-Bacteroides_fragilis                       <NA>    Pathogenic
-## CM000718.1_seq1-Bacillus_wiedmannii                        <NA>          <NA>
-## CM000740.1_seq1-Bacillus_cereus                            <NA>    Pathogenic
-##                                             MGE
-## CP001778.1_seq1-Stackebrandtia_nassauensis <NA>
-## CP001814.1_seq1-Streptosporangium_roseum   <NA>
-## FN650140.1_seq1-Legionella_longbeachae     <NA>
-## EQ973223.1_seq1-Bacteroides_fragilis       <NA>
-## CM000718.1_seq1-Bacillus_wiedmannii        <NA>
-## CM000740.1_seq1-Bacillus_cereus            <NA>
+##                                               Isolation_cluster NA1 NA2
+## CP001778.1_seq1-Stackebrandtia_nassauensis Soil, , , , , , , ,   NA  NA
+## CP001814.1_seq1-Streptosporangium_roseum                   <NA>  NA  NA
+## FN650140.1_seq1-Legionella_longbeachae                     <NA>  NA  NA
+## EQ973223.1_seq1-Bacteroides_fragilis                       <NA>  NA  NA
+## CM000718.1_seq1-Bacillus_wiedmannii                        <NA>  NA  NA
+## CM000740.1_seq1-Bacillus_cereus                            <NA>  NA  NA
 ```
 
 2- Events\_results.txt. This is the table that sum up all the information regarding events. All node events are described here, and we can see which are their leaves and associated taxonomy, among other realted information.
