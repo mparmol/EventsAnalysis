@@ -10,15 +10,37 @@ knitr::opts_chunk$set(collapse=TRUE, comment="##", fig.retina=2, fig.path = "REA
 
 # **README**
 
-## **R code for: Parras-Moltó & , 2021**
+## **R code for: Parras-Moltó & , 2022**
 
-This document describes the use of Analysis.R. The evolutionary process of Antibiotic resistance genes (ARGs) could be studied by the flow of genetic information between different phyla bacteria, what we call as events. Events are described as node-points within the tree with two branches that belong to at least two different phyla. Within this script we will use a tree based on the sequence aligment of ARGs of each class and their related taxonomy to define where events happens.
+This document describes the use of Antibiotic_resistance_genes_analyzer.R. The evolutionary process of Antibiotic resistance genes (ARGs) could be studied by the flow of genetic information between different phyla bacteria, what we call as events. Events are described as node-points within the tree with two branches that belong to at least two different phyla. Within this script we will use a tree based on the sequence aligment of ARGs of each class and their related taxonomy to define where events happens.
 
 ```
 `r version[['version.string']]`
 ```
 
 ###**Dependencies**
+
+#### **Conda**
+
+A Conda environment is required to run the script. 
+
+Miniconda3 installation guide:
+
+``` r
+mkdir -p ~/miniconda3
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh
+bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
+rm -rf ~/miniconda3/miniconda.sh
+~/miniconda3/bin/conda init bash
+
+```
+
+Environment installation:
+
+``` r
+conda env create -f Antibiotic_analyze.yml
+```
+
 
 **Packages**
 
