@@ -101,7 +101,7 @@ accession numbers and taxon IDs based on NCBI’s accession2taxid and
 taxdump files. This package allows the user to downloads NCBI data dumps
 and create a local database for fast and local taxonomic assignment.
 
-#### **Databases creation**
+#### **Databases creation. DATABASE.R - Check for paths before run!**
 
 ``` r
 ### 1 - Taxonomy database
@@ -125,7 +125,7 @@ and create a local database for fast and local taxonomic assignment.
 /storage/parras/ResFinder_db/AntibioticDatabase
 ```
 
-#### **Auxiliary files**
+#### **Auxiliary files. Antibiotic_resistance_genes_analyzer.R - Check for paths before run!**
 
 1- isolation_criteria.txt. Each isolation cluster is defined in this
 file.
