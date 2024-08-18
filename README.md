@@ -3,7 +3,7 @@
 
 # **README**
 
-## **R code for: Parras-Moltó & , 2023**
+## **R code for: Parras-Moltó & , 2024**
 
 This document describes the use of
 Antibiotic_resistance_genes_analyzer.R. The evolutionary process of
