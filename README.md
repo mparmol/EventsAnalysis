@@ -45,7 +45,7 @@ phylogenetic comparative data. It re-implements and extends phylogenetic
 procedures from the ade4 package (which are now deprecated).
 
 · `ape` v5.5. ape provides functions for reading, writing, manipulating,
-analysing, and simulating phylogenetic trees and DNA sequences,
+analyzing, and simulating phylogenetic trees and DNA sequences,
 computing DNA distances, translating into AA sequences, estimating trees
 with distance-based methods, and a range of methods for comparative
 analyses and analysis of diversification. Functionalities are also
@@ -54,7 +54,7 @@ provided for programming new phylogenetic methods.
 · `cowplot` v1.1.1. The cowplot package is a simple add-on to ggplot. It
 provides various features that help with creating publication-quality
 figures, such as a set of themes, functions to align plots and arrange
-them into complex compound figures, and functions that make it easy to
+them into complex compound figures and functions that make it easy to
 annotate plots and or mix plots with images.
 
 · `data.table` v1.14.0. data.table inherits from data.frame. It offers
@@ -66,15 +66,15 @@ and flexible syntax, for faster development.
 files into data structures which integrate with the Bioconductor
 ecosystem..
 
-· `ggnewscale` v0.4.5. Use multiple fill and colour scales in ’ggplot2.
+· `ggnewscale` v0.4.5. Use multiple fill and color scales in ’ggplot2.
 
 · `ggplot2` v3.3.5. A system for ‘declaratively’ creating graphics,
 based on “The Grammar of Graphics”. You provide the data, tell ‘ggplot2’
 how to map variables to aesthetics, what graphical primitives to use,
-and it takes care of the details.
+and how it takes care of the details.
 
 · `ggtree` v2.4.2. Visualizing phylogenetic tree and heterogenous
-associated data based on grammar of graphics ggtree provides functions
+associated data based on the grammar of graphics ggtree provides functions
 for visualizing phylogenetic tree and its associated data in R.
 
 · `gtools` v3.9.2. The gtools R package provides functions to assist in
@@ -98,7 +98,7 @@ to feed into the input of another.
 
 · `taxonomizr` v0.8.0. Functions for assigning taxonomy to NCBI
 accession numbers and taxon IDs based on NCBI’s accession2taxid and
-taxdump files. This package allows the user to downloads NCBI data dumps
+taxdump files. This package allows the user to download NCBI data dumps
 and create a local database for fast and local taxonomic assignment.
 
 #### **Databases creation. DATABASE.R - Check for paths before run!**
@@ -106,23 +106,23 @@ and create a local database for fast and local taxonomic assignment.
 ``` r
 ### 1 - Taxonomy database
 
-/storage/parras/Taxa_ncbi/accessionTaxa.sql
+accessionTaxa.sql
 
-### 2 - Get accession number and names for each analyzed sequence
+### 2 - Get the accession number and names for each analyzed sequence
 
-/home/parras/RESULTADOS_FINALES_NO_BORRAR/total_ids.txt
+total_ids.txt
 
 ### 3 - Get an original dataframe from all sequence taxonomy
 
-/home/parras/RESULTADOS_FINALES_NO_BORRAR/complete_taxa_file.txt
+complete_taxa_file.txt
 
 ### 4 - Download all information related to each sequence, like isolation_source
 
-/storage/parras/databaseR/Tablas_taxa/Total_isolation.txt
+Total_isolation.txt
 
 ### 5 - Download ResFinder database file (nucleotide format db)
 
-/storage/parras/ResFinder_db/AntibioticDatabase
+AntibioticDatabase
 ```
 
 #### **Auxiliary files. Antibiotic_resistance_genes_analyzer.R - Check for paths before run!**
@@ -131,12 +131,12 @@ and create a local database for fast and local taxonomic assignment.
 file.
 
 ``` r
-/home/parras/RESULTADOS_FINALES_NO_BORRAR/isolation_criteria.txt
+isolation_criteria.txt
 ```
 
 2- isolation_exclusion_criteria.txt. In this list we have all the terms
 that are excluded from any group to avoid ambiguity.
 
 ``` r
-/home/parras/RESULTADOS_FINALES_NO_BORRAR/isolation_exclusion_criteria.txt
+isolation_exclusion_criteria.txt
 ```
